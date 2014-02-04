@@ -156,6 +156,7 @@ class FlowCellInfo : public SimpleCellInfo {
 	inline int& fictious (void) {return fict;}
 	inline double& p (void) {return pression;}
 	inline const Real& solute (void) const {return solute_concentration;}
+	inline Real& solute (void) {return solute_concentration;}
 	//For compatibility with the periodic case
 	inline const double shiftedP (void) const {return pression;}
 	inline const std::vector<double>& k_norm (void) const {return module_permeability;}
