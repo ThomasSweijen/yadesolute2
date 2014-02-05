@@ -63,6 +63,13 @@ class FlowEngine : public PartialEngine
 		TPL void setForceMetis (Solver& flow, bool force);
 		TPL bool getForceMetis (Solver& flow);
 		#endif
+		TPL void Initialize_soluteTransport (Solver& flow);
+		TPL void soluteTransport (double deltatime, double D, Solver& flow );
+		TPL double getConcentration(unsigned int id, Solver& flow){return flow->T[flow->currentTes].cellHandles[id]->info().solute();	}
+		TPL double insertConcentration(unsigned int id,double conc, Solver& flow){ 
+		flow->T[flow->currentTes].cellHandles[id]->info().solute() = conc;
+		return conc;
+		}
 		TPL void Triangulate (Solver& flow);
 		TPL void AddBoundary (Solver& flow);
 		TPL void Build_Triangulation (double P_zero, Solver& flow);
@@ -190,6 +197,9 @@ class FlowEngine : public PartialEngine
 		int		_getCell(Vector3r pos) {return getCell(pos[0],pos[1],pos[2],solver);}
 		unsigned int	_nCells() {return nCells(solver);}
 		python::list	_getVertices(unsigned int id) {return getVertices(id,solver);}
+		void 		_soluteTransport (double deltatime, double D){return soluteTransport (deltatime,D, solver);}
+		double 		_getConcentration(unsigned int id){return getConcentration(id, solver);}
+		double		_insertConcentration(unsigned int id,double conc){return insertConcentration(id,conc,solver);}
 		#ifdef LINSOLV
 		void 		_exportMatrix(string filename) {exportMatrix(filename,solver);}
 		void 		_exportTriplets(string filename) {exportTriplets(filename,solver);}
@@ -314,6 +324,10 @@ class FlowEngine : public PartialEngine
 					.def("getCell",&FlowEngine::_getCell,(python::arg("pos")),"get id of the cell containing (X,Y,Z).")
 					.def("nCells",&FlowEngine::_nCells,"get the total number of finite cells in the triangulation.")
 					.def("getVertices",&FlowEngine::_getVertices,(python::arg("id")),"get the vertices of a cell")
+					.def("soluteTransport",&FlowEngine::_soluteTransport,(python::arg("deltatime"),python::arg("D")),"Solute transport (advection and diffusion) engine for diffusion use a diffusion coefficient (D) other than 0.")
+					.def("getConcentration",&FlowEngine::_getConcentration,(python::arg("id")),"get concentration of pore with ID")
+					.def("insertConcentration",&FlowEngine::_insertConcentration,(python::arg("id"),python::arg("conc")),"Insert Concentration (ID, Concentration)")				
+		
 					#ifdef LINSOLV
 					.def("exportMatrix",&FlowEngine::_exportMatrix,(python::arg("filename")="matrix"),"Export system matrix to a file with all entries (even zeros will displayed).")
 					.def("exportTriplets",&FlowEngine::_exportTriplets,(python::arg("filename")="triplets"),"Export system matrix to a file with only non-zero entries.")

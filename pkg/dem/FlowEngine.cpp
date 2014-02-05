@@ -704,6 +704,101 @@ void FlowEngine::ComputeViscousForces ( Solver& flow )
 	}
 }
 
+//__________Solute Transport__________
+// T. Sweijen (T.sweijen@uu.nl) 
+
+template<class Solver>
+void FlowEngine::Initialize_soluteTransport ( Solver& flow )
+{
+	typedef typename Solver::element_type Flow;
+	typedef typename Flow::Finite_vertices_iterator Finite_vertices_iterator;
+	typedef typename Solver::element_type Flow;
+
+	FOREACH(Cell_handle& cell, flow->T[flow->currentTes].cellHandles)
+	{
+	 cell->info().solute() = 0.0;
+	}
+}
+
+template<class Solver>
+void FlowEngine::soluteTransport (double deltatime, double D, Solver& flow )
+{
+	double coeff = 0.00;
+	double coeff1 = 0.00;
+	double coeff2 = 0.00;
+	double qin = 0.00;
+	double Qout=0.0;
+	int ncells = 0;
+	int ID = 0;
+	//double D = 0.0;
+	double inv_distance = 0.0;
+	ncells=flow->T[flow->currentTes].cellHandles.size();
+	
+	Eigen::SparseMatrix<double, Eigen::ColMajor> Aconc(ncells,ncells);
+	typedef Eigen::Triplet<double> ETriplet2;
+	std::vector<ETriplet2> tripletList2;
+	Eigen::SparseLU<Eigen::SparseMatrix<double,Eigen::ColMajor>,Eigen::COLAMDOrdering<int> > eSolver2;	
+
+	// Prepare (copy) concentration vector at time t
+	Eigen::VectorXd eb2(ncells); Eigen::VectorXd ex2(ncells);
+	FOREACH(Cell_handle& cell, flow->T[flow->currentTes].cellHandles){
+	  eb2[cell->info().id]=cell->info().solute();
+	}
+		
+	// Prepare Coefficient Matrix
+	FOREACH(Cell_handle& cell, flow->T[flow->currentTes].cellHandles){
+	cell->info().invVoidVolume() = 1 / ( abs(cell->info().volume()) - abs(flow->volumeSolidPore(cell) ) );
+	inv_distance=0.0;
+	for (unsigned int ngb=0;ngb<4;ngb++){
+	  CGT::Point& p2 = cell ->neighbor(ngb)->info();
+	  CGT::Point& p1 = cell->info();
+	  CGT::Vecteur l = p1-p2;
+	  inv_distance+=(1.0/sqrt(l.squared_length()));
+	}
+	
+
+	unsigned int i=cell->info().id;
+	for (unsigned int ngb=0;ngb<4;ngb++){
+	  
+	  coeff = deltatime*cell->info().invVoidVolume();
+	      ID = cell->neighbor(ngb)->info().id;
+		 qin=abs(cell->info().k_norm() [ngb])* ( cell->neighbor ( ngb )->info().p()-cell->info().p());
+		 Qout=Qout+max(qin,0.0);
+		 coeff1=-1*coeff*(abs(max(qin,0.0))-D*inv_distance);
+		 if (coeff1 != 0.0){
+		 tripletList2.push_back(ETriplet2(i,ID,coeff1));
+		 }
+	 
+	}
+	coeff2=1.0+(coeff*abs(Qout))+coeff*D*inv_distance;
+	tripletList2.push_back(ETriplet2(i,i,coeff2));
+	Qout=0.0;
+	}   
+	    //Solve Matrix
+	    Aconc.setFromTriplets(tripletList2.begin(), tripletList2.end());
+	    //if (eSolver2.signDeterminant() < 1){cerr << "determinant is negative!!!!!!! " << eSolver2.signDeterminant()<<endl;}
+	    //eSolver2.setPivotThreshold(10e-8);
+	    eSolver2.analyzePattern(Aconc); 						
+	    eSolver2.factorize(Aconc); 						
+	    eSolver2.compute(Aconc);
+	    ex2 = eSolver2.solve(eb2);
+	    
+	    
+	    double averageConc = 0.0;
+	    FOREACH(Cell_handle& cell, flow->T[flow->currentTes].cellHandles){
+	    averageConc+=cell->info().solute();}
+	    
+	    //Copy data to concentration array
+	    FOREACH(Cell_handle& cell, flow->T[flow->currentTes].cellHandles){
+		cell->info().solute()= ex2[cell->info().id];
+
+	      }					
+										
+	    tripletList2.clear();
+	    
+  }
+
+
 YADE_PLUGIN ( ( FlowEngine ) );
 
 //______________________________________________________________
