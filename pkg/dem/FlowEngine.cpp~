@@ -721,19 +721,6 @@ void FlowEngine::Initialize_soluteTransport ( Solver& flow )
 }
 
 template<class Solver>
-void FlowEngine::solute_BC(unsigned int bc_id1, unsigned int bc_id2, double bc_concentration1, double bc_concentration2, unsigned int s, Solver& flow)
-{
-    	FOREACH(Cell_handle& cell, flow->T[flow->currentTes].cellHandles)
-	{
-	 for (unsigned int ngb=0;ngb<4;ngb++){ 
-	  if (cell->vertex(ngb)->info().id() == bc_id1){cell->info().solute() = bc_concentration1;}
-	  if (s > 0){if (cell->vertex(ngb)->info().id() == bc_id2){cell->info().solute() = bc_concentration2;}}
-	}
-	}
-}
-
-
-template<class Solver>
 void FlowEngine::soluteTransport (double deltatime, double D, Solver& flow )
 {
 	double coeff = 0.00;

@@ -330,7 +330,7 @@ class FlowEngine : public PartialEngine
 					.def("getConcentration",&FlowEngine::_getConcentration,(python::arg("id")),"get concentration of pore with ID")
 					.def("insertConcentration",&FlowEngine::_insertConcentration,(python::arg("id"),python::arg("conc")),"Insert Concentration (ID, Concentration)")				
 					.def("solute_BC",&FlowEngine::_solute_BC,(python::arg("bc_id1"),python::arg("bc_id2"),python::arg("bc_concentration1"),python::arg("bc_concentration2"),python::arg("s")),"Enter X,Y,Z for concentration observation'.")
-		
+9		
 					#ifdef LINSOLV
 					.def("exportMatrix",&FlowEngine::_exportMatrix,(python::arg("filename")="matrix"),"Export system matrix to a file with all entries (even zeros will displayed).")
 					.def("exportTriplets",&FlowEngine::_exportTriplets,(python::arg("filename")="triplets"),"Export system matrix to a file with only non-zero entries.")
