@@ -705,11 +705,12 @@ void FlowEngine::ComputeViscousForces ( Solver& flow )
 }
 
 //__________Solute Transport__________
-// T. Sweijen (T.sweijen@uu.nl) 
+// by T. Sweijen (T.sweijen@uu.nl) 
 
 template<class Solver>
 void FlowEngine::Initialize_soluteTransport ( Solver& flow )
 {
+	//Prepare a list with concentrations in range of 0,nCells. Or resets the list of concentrations to 0
 	typedef typename Solver::element_type Flow;
 	typedef typename Flow::Finite_vertices_iterator Finite_vertices_iterator;
 	typedef typename Solver::element_type Flow;
@@ -721,17 +722,62 @@ void FlowEngine::Initialize_soluteTransport ( Solver& flow )
 }
 
 template<class Solver>
+void FlowEngine::solute_BC(unsigned int bcid1, unsigned int bcid2, double bcconcentration1, double bcconcentration2, unsigned int s, Solver& flow)
+{
+	//Boundary conditions according to soluteTransport.
+	//It simply assigns boundary concentrations to cells with a common vertices (e.g. infinite large sphere which makes up the boundary condition in flowEngine)
+	//s is a switch, if 0 only bc_id1 is used (advection only). If >0 than both bc_id1 and bc_id2 are used. 
+    	FOREACH(Cell_handle& cell, flow->T[flow->currentTes].cellHandles)
+	{
+	 for (unsigned int ngb=0;ngb<4;ngb++){ 
+	  if (cell->vertex(ngb)->info().id() == bcid1){cell->info().solute() = bcconcentration1;}
+	  if (s > 0){if (cell->vertex(ngb)->info().id() == bcid2){cell->info().solute() = bcconcentration2;}}
+	}
+	}
+}
+
+template<class Solver>
+double FlowEngine::getConcentrationPlane (double Yobs,double Yr, int xyz, Solver& flow )
+{
+	//Get the concentration within a certain plane (Y_obs), whilst the cells are located in a small volume around this plane
+	//The concentration in cells are weighed for their distance to the observation point
+	//for a point on the x-axis (xyz=0), point on the y-axis (xyz=1), point on the z-axis (xyz=2)
+	double sumConcentration = 0.0;
+	double sumFraction=0.0;
+	double concentration=0.0;
+	//Find cells within designated volume
+
+	 FOREACH(Cell_handle& cell, flow->T[flow->currentTes].cellHandles)
+	{
+	CGT::Point& p1 = cell->info();
+	if (abs(p1[xyz]) < abs(abs(Yobs) + abs(Yr))){
+	  if(abs(p1[xyz]) > abs(abs(Yobs) - abs(Yr))){
+	    sumConcentration += cell->info().solute()*(1-(abs(p1[xyz])-abs(Yobs))/abs(Yr));
+	    sumFraction += (1-(abs(p1[xyz])-abs(Yobs))/abs(Yr));
+	}
+	}
+	}
+      concentration = sumConcentration / sumFraction;
+      return concentration;
+}
+
+template<class Solver>
 void FlowEngine::soluteTransport (double deltatime, double D, Solver& flow )
 {
+	//soluteTransport is a function to solve transport of solutes for advection (+diffusion).
+	//Call this function with a pyRunner in the python script, implement a diffusion coefficient and a dt.
+	//  Optimalization has to be done such that the coefficient matrix is not solved for each time step,only after triangulation.
+	//  Extensive testing has to be done to check its ability to simulate a deforming porous media.
 	double coeff = 0.00;
-	double coeff1 = 0.00;
-	double coeff2 = 0.00;
-	double qin = 0.00;
-	double Qout=0.0;
-	int ncells = 0;
+	double coeff1 = 0.00;	//Coefficient for off-diagonal element
+	double coeff2 = 0.00;  //Coefficient for diagonal element
+	double qin = 0.00;	//Flux into the pore per pore throat 
+	double Qout=0.0;	//Total Flux out of the pore
+	int ncells = 0;		//Number of cells
 	int ID = 0;
 	//double D = 0.0;
-	double inv_distance = 0.0;
+	double invdistance = 0.0;	//Fluid facet area divided by pore throat length for each pore throat
+	double invdistancelocal = 0.0; //Sum of invdistance
 	ncells=flow->T[flow->currentTes].cellHandles.size();
 	
 	Eigen::SparseMatrix<double, Eigen::ColMajor> Aconc(ncells,ncells);
@@ -748,29 +794,28 @@ void FlowEngine::soluteTransport (double deltatime, double D, Solver& flow )
 	// Prepare Coefficient Matrix
 	FOREACH(Cell_handle& cell, flow->T[flow->currentTes].cellHandles){
 	cell->info().invVoidVolume() = 1 / ( abs(cell->info().volume()) - abs(flow->volumeSolidPore(cell) ) );
-	inv_distance=0.0;
-	for (unsigned int ngb=0;ngb<4;ngb++){
-	  CGT::Point& p2 = cell ->neighbor(ngb)->info();
-	  CGT::Point& p1 = cell->info();
-	  CGT::Vecteur l = p1-p2;
-	  inv_distance+=(1.0/sqrt(l.squared_length()));
-	}
+	invdistance=0.0;
 	
 
 	unsigned int i=cell->info().id;
 	for (unsigned int ngb=0;ngb<4;ngb++){
-	  
+	  CGT::Point& p2 = cell ->neighbor(ngb)->info();
+	  CGT::Point& p1 = cell->info();
+	  CGT::Vecteur l = p1-p2;
+	  CGT::Real fluidSurf = sqrt(cell->info().facetSurfaces[ngb].squared_length())*cell->info().facetFluidSurfacesRatio[ngb];
+	  invdistancelocal = (fluidSurf/sqrt(l.squared_length()));
+	  invdistance+=(fluidSurf/sqrt(l.squared_length()));
 	  coeff = deltatime*cell->info().invVoidVolume();
 	      ID = cell->neighbor(ngb)->info().id;
 		 qin=abs(cell->info().k_norm() [ngb])* ( cell->neighbor ( ngb )->info().p()-cell->info().p());
 		 Qout=Qout+max(qin,0.0);
-		 coeff1=-1*coeff*(abs(max(qin,0.0))-D*inv_distance);
+		 coeff1=-1*coeff*(abs(max(qin,0.0))-(D*invdistancelocal));
 		 if (coeff1 != 0.0){
 		 tripletList2.push_back(ETriplet2(i,ID,coeff1));
 		 }
 	 
 	}
-	coeff2=1.0+(coeff*abs(Qout))+coeff*D*inv_distance;
+	coeff2=1.0+(coeff*abs(Qout))+(coeff*D*invdistance);
 	tripletList2.push_back(ETriplet2(i,i,coeff2));
 	Qout=0.0;
 	}   

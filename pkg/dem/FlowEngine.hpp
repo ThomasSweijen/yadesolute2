@@ -70,6 +70,7 @@ class FlowEngine : public PartialEngine
 		flow->T[flow->currentTes].cellHandles[id]->info().solute() = conc;
 		return conc;
 		}
+		TPL double getConcentrationPlane (double Y_obs,double Yr, int xyz, Solver& flow );	
 		TPL void solute_BC(unsigned int bc_id1, unsigned int bc_id2, double bc_concentration1, double bc_concentration2,unsigned int s,Solver& flow);		
 		TPL void Triangulate (Solver& flow);
 		TPL void AddBoundary (Solver& flow);
@@ -202,6 +203,8 @@ class FlowEngine : public PartialEngine
 		double 		_getConcentration(unsigned int id){return getConcentration(id, solver);}
 		double		_insertConcentration(unsigned int id,double conc){return insertConcentration(id,conc,solver);}
 		void 		_solute_BC(unsigned int bc_id1, unsigned int bc_id2, double bc_concentration1, double bc_concentration2,unsigned int s) {return solute_BC(bc_id1, bc_id2, bc_concentration1, bc_concentration2,s,solver);}
+		double 		_getConcentrationPlane (double Y_obs,double Yr, int xyz){return getConcentrationPlane(Y_obs,Yr,xyz,solver);}
+		
 		#ifdef LINSOLV
 		void 		_exportMatrix(string filename) {exportMatrix(filename,solver);}
 		void 		_exportTriplets(string filename) {exportTriplets(filename,solver);}
@@ -330,7 +333,7 @@ class FlowEngine : public PartialEngine
 					.def("getConcentration",&FlowEngine::_getConcentration,(python::arg("id")),"get concentration of pore with ID")
 					.def("insertConcentration",&FlowEngine::_insertConcentration,(python::arg("id"),python::arg("conc")),"Insert Concentration (ID, Concentration)")				
 					.def("solute_BC",&FlowEngine::_solute_BC,(python::arg("bc_id1"),python::arg("bc_id2"),python::arg("bc_concentration1"),python::arg("bc_concentration2"),python::arg("s")),"Enter X,Y,Z for concentration observation'.")
-		
+					.def("getConcentrationPlane",&FlowEngine::_getConcentrationPlane,(python::arg("Y_obs"),python::arg("Yr"),python::arg("xyz")),"get the average concentration in a plane with coordinate Y_obs and +- Y_r, in the x-direction (xyz=0), y-direction(xyz=1) or z-direction(xyz=2)")
 					#ifdef LINSOLV
 					.def("exportMatrix",&FlowEngine::_exportMatrix,(python::arg("filename")="matrix"),"Export system matrix to a file with all entries (even zeros will displayed).")
 					.def("exportTriplets",&FlowEngine::_exportTriplets,(python::arg("filename")="triplets"),"Export system matrix to a file with only non-zero entries.")
